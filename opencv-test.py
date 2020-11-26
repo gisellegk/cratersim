@@ -16,15 +16,16 @@ maxCraterSize = 100 #km, diameter
 meanCraterSize = 10 #km, diameter, for lognormal
 sigma = 5           # for lognormal
 gamma = 2           # for power law
+avgRange = 10       # how many data points to average for saturation determination
 
 # global variables
-craters = {# list of craters drawn so far
+craters = {         # list of craters drawn so far
     "x":[],
     "y":[],
     "d":[]
 }
-visibleCraters = [] # running list of # craters counted 
-
+visibleCraters = [] # running list of num craters counted 
+runningAvg = []     # running list of averages
 
 def drawCrater(img, x, y, diameter):
     img = cv2.circle(img,(x*sf,y*sf), round(diameter/2*sf), 255, -1)    #white center
@@ -40,7 +41,7 @@ def lognormal(mean,sigma,minsize,maxsize):
         size=np.random.lognormal(mean=np.log(mean),sigma=np.log(sigma),size=None)
         if size >= minsize and size <= maxsize:
             break
-    print(size)
+    #print(size)
     return size
 
 # Returns a random value between maxsize and minsize, from a power law distribution
@@ -53,28 +54,60 @@ def powerLaw(gamma, k_min, k_max):
 def simulate():
     #create blank image
     img = 200 * np.ones(shape=[500*sf, 500*sf, 1], dtype=np.uint8)
-
+    i = 0
     # throw craters at it
-    for i in range(0,500):
+    while True:
+        # create a new crater:
         craters["x"].append(random.randint(0,500))
         craters["y"].append(random.randint(0,500))
-        craters["d"].append(lognormal(meanCraterSize,sigma,minCraterSize,maxCraterSize))
-#        craters["d"].append(powerLaw(gamma,minCraterSize,maxCraterSize))
-        
-#        print(powerLaw(2,minCraterSize, maxCraterSize))
-#        thisCrater = powerLaw(2,minCraterSize,maxCraterSize)        
-#        print(lognormal(meanCraterSize,sigma,minCraterSize,maxCraterSize)
-#        thisCrater = lognormal(meanCraterSize,sigma,minCraterSize,maxCraterSize)
+        #craters["d"].append(lognormal(meanCraterSize,sigma,minCraterSize,maxCraterSize))
+        craters["d"].append(powerLaw(gamma,minCraterSize,maxCraterSize))
 
+        # draw crater on canvas
         drawCrater(img, craters["x"][i],craters["y"][i], craters["d"][i])
-#        drawCrater(img, random.randint(0,500), random.randint(0,500), thisCrater)
-        cv2.waitKey(1)
+
+        ### TODO: count visible craters
+        visibleCraters.append(i);
+        
+        # calculate running average
+        if len(visibleCraters) >= avgRange:
+            avg = 0
+            for j in range(0,avgRange):
+                avg += visibleCraters[-avgRange+j] # sum last n craters
+            avg = avg / avgRange
+            runningAvg.append(avg)
+
+        if len(visibleCraters) >= 2000: ### TODO: determine saturation to break out of the loop
+            
+            break
+
+        i = i+1
+
+#        cv2.waitKey(1)
+    print('Number of Visible Craters: ', visibleCraters[i])
+    print('Running Average: ', runningAvg[-1])
+    print('Year:', 1000*len(visibleCraters))
 
     # plot histogram of crater sizes
-    print(len(craters))
+    ### TODO: labels
+    print(len(craters["x"]))
+    plt.subplot(131)
     plt.hist(craters["d"],10)
-    plt.show()
+
+    # plot # visible craters over time  (part c)
+    ### TODO: labels, mark saturation
+    plt.subplot(132)
+    plt.plot(visibleCraters)
     
+    # plot running average over time
+    ### TODO: Labels, tune saturation calculation
+    plt.subplot(133)
+    plt.plot(runningAvg)
+    
+    plt.show()
+
+    ### TODO: Plot 25%, 50%, 75%
+
 
 simulate()
 cv2.waitKey(0)
