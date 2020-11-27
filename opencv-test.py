@@ -6,18 +6,22 @@ import powerlaw
 import matplotlib.pyplot as plt
 
 
+#############################
+######### SETTINGS  #########
+#############################
+
 # display settings
 sf = 8        # scale factor
 stroke = 1    # crater edge stroke
 
 # simulation settings
-maxCraterCount = 2000
-minCraterSize = 10  #km, diameter
-maxCraterSize = 100 #km, diameter
-meanCraterSize = 10 #km, diameter, for lognormal
-sigma = 5           # for lognormal
-gamma = 2           # for power law
-avgRange = 100       # how many data points to average for saturation determination
+avgRange = 100        # how many data points to average for saturation determination
+maxCraterCount = 2000 # How long the simulation runs (10^3 years)
+minCraterSize = 10    # km, diameter
+maxCraterSize = 100   # km, diameter
+meanCraterSize = 10   # km, diameter, for lognormal
+sigma = 5             # for lognormal
+gamma = 2             # for power law
 
 # global variables
 craters = {         # list of craters drawn so far
@@ -28,6 +32,15 @@ craters = {         # list of craters drawn so far
 visibleCraters = [] # running list of num craters counted 
 runningAvg = []     # running list of averages
 
+#############################
+######### FUNCTIONS #########
+#############################
+
+# scale display image
+def scaleImg(img, sf):
+    return cv2.resize(img, (int(img.shape[1]*sf/100), int(img.shape[0]*sf/100)), interpolation=cv2.INTER_AREA)
+
+# Draws a crater on the canvas
 def drawCrater(img, x, y, diameter):
     if True :#diameter < round(maxCraterSize/2+5):
         
@@ -35,6 +48,15 @@ def drawCrater(img, x, y, diameter):
         img = cv2.circle(img,(x*sf,y*sf), round(diameter/2*sf), (0,0,0), round(stroke*sf))    #black crater edge
     
     #cv2.imshow('image',img)
+    return img
+
+# Redraws the canvas at a given timestamp
+def redrawCanvas(time):
+    img = 250 * np.ones(shape=[500*sf, 500*sf, 3], dtype=np.uint8)
+    for x in range(time):
+        img = drawCrater(img, craters["x"][x], craters["y"][x], craters["d"][x])
+    #cv2.imshow('redrawn image', img)
+    return img
 
 # Returns a random value between maxsize and minsize, from a lognormal distribution
 # https://numpy.org/doc/stable/reference/random/generated/numpy.random.lognormal.html
@@ -54,7 +76,9 @@ def powerLaw(gamma, k_min, k_max):
     y=np.random.uniform(0,1)
     return ((k_max**(-gamma+1) - k_min**(-gamma+1))*y  + k_min**(-gamma+1.0))**(1.0/(-gamma + 1.0))
 
-
+# Returns a count of number of craters detected in a given image.
+# Performs three Hough Circle Transforms, tuned to find small, medium, and large circles in an image.
+# https://docs.opencv.org/3.4/d4/d70/tutorial_hough_circle.html
 def countCraters(src):
     src = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
     src = cv2.GaussianBlur(src,(9,9),4,4)
@@ -91,11 +115,15 @@ def countCraters(src):
             center = (k[0], k[1])
             # circle center
             cv2.circle(src, center, 1, (250,0,250), 3)
+            # circle outline
             radius = k[2]
             cv2.circle(src,center,radius,(250,0,250),4)
     return (thisCraterCount,src)
 
 
+#############################
+### SIMULATION  AND PLOTS ###
+#############################
 def simulate():
     #create blank image
     img = 250 * np.ones(shape=[500*sf, 500*sf, 3], dtype=np.uint8)
@@ -112,56 +140,47 @@ def simulate():
         print(i,", ",craters["x"][i],", ",craters["y"][i],", ", craters["d"][i])
         drawCrater(img, craters["x"][i],craters["y"][i], craters["d"][i])
 
-        ### TODO: count visible craters
-        if i%1 == 0 :
-            src = img.copy()
-            thisCraterCount,src = countCraters(src)
-            src = cv2.resize(src, (int(src.shape[1]*25/100), int(src.shape[0]*25/100)), interpolation=cv2.INTER_AREA)
-            cv2.imshow("detected circles", src)
-            visibleCraters.append(thisCraterCount);
+        ### count visible craters
         
-            # calculate running average
-            if len(visibleCraters) >= avgRange:
-                avg = 0
-                for j in range(0,avgRange):
-                    avg += visibleCraters[-avgRange+j] # sum last n craters
-                avg = avg / avgRange
-                runningAvg.append(avg)
-            elif len(visibleCraters) >= avgRange/2: 
-                runningAvg.append(None)
+        src = img.copy()
+        thisCraterCount,src = countCraters(src)
+        visibleCraters.append(thisCraterCount);
+        
+        # calculate running average
+        if len(visibleCraters) >= avgRange:
+            avg = 0
+            for j in range(0,avgRange):
+                avg += visibleCraters[-avgRange+j] # sum last n craters
+            avg = avg / avgRange
+            runningAvg.append(avg)
+        elif len(visibleCraters) >= avgRange/2: 
+            runningAvg.append(None) # time adjustment for graphing
 
-        if len(craters["d"]) >= maxCraterCount: ### TODO: determine saturation to break out of the loop
-            
+        if len(craters["d"]) >= maxCraterCount:             
             break
         
         if i%100 == 0:
-            cv2.waitKey(1)
+            src = cv2.resize(src, (int(src.shape[1]*25/100), int(src.shape[0]*25/100)), interpolation=cv2.INTER_AREA)
+            cv2.imshow("detected circles", src)
+            cv2.waitKey(1) # update image
         i = i+1
-        
-    #print('Number of Visible Craters: ', visibleCraters[i])
-    #print('Running Average: ', runningAvg[-1])
-    print('Year:', 1000*len(visibleCraters))
 
     # plot histogram of crater sizes
-    ### TODO: labels
-    print(len(craters["x"]))
-    plt.subplot(131)
+    plt.title("Histogram of Crater Sizes:\nLognormal Distribution")
+    plt.ylabel("Number of Craters")
+    plt.xlabel("Crater Diameter (km) (bucket size=10)")
+    plt.subplot(121)
     plt.hist(craters["d"],10)
 
     # plot # visible craters over time  (part c)
-    ### TODO: labels, mark saturation
-    plt.subplot(132)
+    plt.subplot(122)
+    plt.title("Total Visible Craters over Time\nLognormal Distribution")
+    plt.ylabel("Number of Craters")
+    plt.xlabel("Time (10^3 years)")
     plt.plot(visibleCraters)
     plt.plot(runningAvg)
     
-    # plot running average over time
-    ### TODO: Labels, tune saturation calculation
-    plt.subplot(133)
-    plt.plot(runningAvg)
-    
     plt.show()
-
-    ### TODO: Plot 25%, 50%, 75%
 
 
 simulate()
