@@ -36,6 +36,24 @@ runningAvg = []     # running list of averages
 ######### FUNCTIONS #########
 #############################
 
+# show summary of results after simulation completes
+def showSummary(tsat):
+    cv2.imshow('Craters: (25%)',scaleImg(redrawCanvas(round(tsat*.25)),25))
+    cv2.imshow('Counted Craters: (25%)',scaleImg( countCraters(redrawCanvas(round(tsat*.25)))[1] ,25) )
+    print('Number of Craters at ',round(tsat*.25),',000 years (25%): ', countCraters(redrawCanvas(round(tsat*.25)))[0])
+
+    cv2.imshow('Craters: (50%)',scaleImg(redrawCanvas(round(tsat*.5)),25))
+    cv2.imshow('Counted Craters: (50%)',scaleImg( countCraters(redrawCanvas(round(tsat*.5)))[1] ,25) )
+    print('Number of Craters at ',round(tsat*.5),',000 years (50%): ', countCraters(redrawCanvas(round(tsat*.5)))[0])
+
+    cv2.imshow('Craters: (75%)',scaleImg(redrawCanvas(round(tsat*.75)),25))
+    cv2.imshow('Counted Craters: (75%)',scaleImg( countCraters(redrawCanvas(round(tsat*.75)))[1] ,25) )
+    print('Number of Craters at ',round(tsat*.75),',000 years (75%): ', countCraters(redrawCanvas(round(tsat*.75)))[0])
+
+    cv2.imshow('Craters: (100%)',scaleImg(redrawCanvas(tsat),25))
+    cv2.imshow('Counted Craters: (100%)',scaleImg( countCraters(redrawCanvas(tsat))[1] ,25) )
+    print('Number of Craters at ',tsat,',000 years (100%): ', countCraters(redrawCanvas(tsat))[0])
+
 # scale display image
 def scaleImg(img, sf):
     return cv2.resize(img, (int(img.shape[1]*sf/100), int(img.shape[0]*sf/100)), interpolation=cv2.INTER_AREA)
@@ -133,8 +151,8 @@ def simulate():
         # create a new crater:
         craters["x"].append(random.randint(0,500))
         craters["y"].append(random.randint(0,500))
-        craters["d"].append(lognormal(meanCraterSize,sigma,minCraterSize,maxCraterSize))
-        #craters["d"].append(powerLaw(gamma,minCraterSize,maxCraterSize))
+        #craters["d"].append(lognormal(meanCraterSize,sigma,minCraterSize,maxCraterSize))
+        craters["d"].append(powerLaw(gamma,minCraterSize,maxCraterSize))
 
         # draw crater on canvas
         print(i,", ",craters["x"][i],", ",craters["y"][i],", ", craters["d"][i])
@@ -166,15 +184,15 @@ def simulate():
         i = i+1
 
     # plot histogram of crater sizes
-    plt.title("Histogram of Crater Sizes:\nLognormal Distribution")
+    plt.subplot(121)
+    plt.title("Histogram of Crater Sizes:\nPower Law Distribution")
     plt.ylabel("Number of Craters")
     plt.xlabel("Crater Diameter (km) (bucket size=10)")
-    plt.subplot(121)
     plt.hist(craters["d"],10)
 
     # plot # visible craters over time  (part c)
     plt.subplot(122)
-    plt.title("Total Visible Craters over Time\nLognormal Distribution")
+    plt.title("Total Visible Craters over Time:\nPower Law Distribution")
     plt.ylabel("Number of Craters")
     plt.xlabel("Time (10^3 years)")
     plt.plot(visibleCraters)
